@@ -62,20 +62,33 @@ const RADII  = [0, 16, 30, 50];   // por tamaño 1, 2, 3
 const SPEEDS = [0, 85, 55, 32];   // velocidad base por tamaño
 const POINTS = [0, 100, 50, 20];  // puntos por tamaño
 
+// Estrella fugaz
+const SHOOTING_STAR_LIFE    = 4;
+const SHOOTING_STAR_SPEED   = 3.2;
+const SHOOTING_STAR_POINTS  = 250;
+const SHOOTING_STAR_SPAWN_P = 0.04;
+
 class Asteroid {
-  constructor(x, y, size = 3) {
+  constructor(x, y, size = 3, special = false) {
     this.x    = x;
     this.y    = y;
     this.size = size;
     this.radius = RADII[size];
     this.dead = false;
+    this.special = special;
 
     const angle = rand(0, Math.PI * 2);
-    const speed = SPEEDS[size] + rand(-15, 15);
+    const baseSpeed = special ? SPEEDS[size] * SHOOTING_STAR_SPEED : SPEEDS[size];
+    const speed = baseSpeed + rand(-15, 15);
     this.vx = Math.cos(angle) * speed;
     this.vy = Math.sin(angle) * speed;
     this.rotSpeed = rand(-1.2, 1.2);
     this.rot = rand(0, Math.PI * 2);
+
+    if (special) {
+      this.ttl  = SHOOTING_STAR_LIFE;
+      this.life = SHOOTING_STAR_LIFE;
+    }
 
     // Polígono irregular
     const n = randInt(8, 13);
@@ -91,10 +104,15 @@ class Asteroid {
     this.x   = wrap(this.x + this.vx * dt, W);
     this.y   = wrap(this.y + this.vy * dt, H);
     this.rot += this.rotSpeed * dt;
+
+    if (this.special) {
+      this.ttl -= dt;
+      if (this.ttl <= 0) this.dead = true;
+    }
   }
 
   split() {
-    if (this.size <= 1) return [];
+    if (this.special || this.size <= 1) return [];
     return [
       new Asteroid(this.x, this.y, this.size - 1),
       new Asteroid(this.x, this.y, this.size - 1),
@@ -102,6 +120,42 @@ class Asteroid {
   }
 
   draw() {
+    if (this.special) {
+      const alpha = Math.min(this.ttl / this.life, 1);
+      const trailLen = 12;
+
+      ctx.globalAlpha = alpha;
+      ctx.save();
+      ctx.translate(this.x, this.y);
+
+      const dirLen = Math.hypot(this.vx, this.vy);
+      if (dirLen > 0) {
+        const dx = -(this.vx / dirLen) * trailLen;
+        const dy = -(this.vy / dirLen) * trailLen;
+        ctx.strokeStyle = '#ffe9a0';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(dx, dy);
+        ctx.stroke();
+      }
+
+      ctx.rotate(this.rot);
+      ctx.strokeStyle = '#ffe9a0';
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(this.verts[0][0], this.verts[0][1]);
+      for (let i = 1; i < this.verts.length; i++)
+        ctx.lineTo(this.verts[i][0], this.verts[i][1]);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.restore();
+      ctx.globalAlpha = 1;
+      return;
+    }
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.rot);
@@ -406,12 +460,15 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += POINTS[a.size];
+        score += a.special ? SHOOTING_STAR_POINTS : POINTS[a.size];
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         // 10% de chance de soltar un power-up de velocidad
         if (Math.random() < POWERUP_SPAWN_P)
           powerups.push(new PowerUp(a.x, a.y));
+        // 4% de chance de spawn estrella fugaz al destruir asteroide normal
+        if (!a.special && Math.random() < SHOOTING_STAR_SPAWN_P)
+          newAsteroids.push(new Asteroid(a.x, a.y, 2, true));
       }
     }
   }
