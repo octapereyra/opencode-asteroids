@@ -29,6 +29,7 @@ Luego visita `http://localhost:3000`.
 | `←` `→`   | Rotar nave |
 | `↑`       | Propulsar  |
 | `Espacio` | Disparar   |
+| `V`       | Alternar nave (normal / morada x2 puntos) |
 
 ## Puntuación
 

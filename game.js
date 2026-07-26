@@ -244,6 +244,12 @@ class PowerUp {
 }
 
 // ── Ship ──────────────────────────────────────────────────────────────────────
+// Variantes de nave
+const SHIP_VARIANTS = {
+  normal: { color: '#fff', scale: 1, radius: 12, pointsMul: 1 },
+  mega:   { color: '#b24bff', scale: 2, radius: 24, pointsMul: 2 }, // morada, 2x tamaño, 2x puntos
+};
+
 class Ship {
   constructor() { this.reset(); }
 
@@ -253,7 +259,7 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    this.variant       = 'normal';   // 'normal' | 'mega'
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -261,11 +267,19 @@ class Ship {
     this.dead          = false;
   }
 
+  get radius()       { return SHIP_VARIANTS[this.variant].radius; }
+  get pointsMul()    { return SHIP_VARIANTS[this.variant].pointsMul; }
+
   update(dt) {
     if (this.dead) return;
     if (this.invincible    > 0) this.invincible    -= dt;
     if (this.shootCooldown > 0) this.shootCooldown -= dt;
     if (this.boostTimer    > 0) this.boostTimer    -= dt;
+
+    // Alternar nave con la tecla V
+    if (pressed('KeyV')) {
+      this.variant = this.variant === 'normal' ? 'mega' : 'normal';
+    }
 
     const ROT   = 3.5;   // rad/s
     const THRUST = this.boostTimer > 0 ? BOOST_THRUST : NORMAL_THRUST;  // px/s²
@@ -289,7 +303,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * SHIP_VARIANTS[this.variant].scale;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     return [new Bullet(ox, oy, this.angle)];
@@ -300,19 +314,22 @@ class Ship {
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
+    const v = SHIP_VARIANTS[this.variant];
+    const S = v.scale;
+
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = v.color;
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
 
     // Silueta clásica: triángulo con muesca trasera
     ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
-    ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
+    ctx.moveTo( 20 * S,  0);          // nariz
+    ctx.lineTo(-12 * S, -9 * S);      // ala izquierda
+    ctx.lineTo( -7 * S,  0);          // muesca trasera
+    ctx.lineTo(-12 * S,  9 * S);      // ala derecha
     ctx.closePath();
     ctx.stroke();
 
@@ -321,9 +338,9 @@ class Ship {
       const boosted = this.boostTimer > 0;
       const len     = boosted ? rand(8, 22) : rand(6, 14);
       ctx.beginPath();
-      ctx.moveTo(-8, -4);
-      ctx.lineTo(-8 - len, 0);
-      ctx.lineTo(-8,  4);
+      ctx.moveTo(-8 * S, -4 * S);
+      ctx.lineTo((-8 - len) * S, 0);
+      ctx.lineTo(-8 * S,  4 * S);
       ctx.strokeStyle = boosted ? 'rgba(0, 255, 255, 0.9)' : 'rgba(255, 130, 0, 0.85)';
       ctx.stroke();
     }
@@ -460,7 +477,8 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += a.special ? SHOOTING_STAR_POINTS : POINTS[a.size];
+        const basePts = a.special ? SHOOTING_STAR_POINTS : POINTS[a.size];
+        score += basePts * ship.pointsMul;
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         // 10% de chance de soltar un power-up de velocidad
@@ -537,6 +555,14 @@ function drawHUD() {
     ctx.textAlign = 'left';
     ctx.fillStyle = '#00ffff';
     ctx.fillText(`BOOST ${ship.boostTimer.toFixed(1)}s`, 14, 48);
+    ctx.fillStyle = '#fff';
+  }
+
+  // Indicador de variante de nave
+  if (ship.variant === 'mega') {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#b24bff';
+    ctx.fillText('NAVE MORADA x2 PUNTOS  (V para cambiar)', 14, 68);
     ctx.fillStyle = '#fff';
   }
 }
