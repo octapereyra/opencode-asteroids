@@ -253,7 +253,9 @@ class Ship {
     this.angle  = -Math.PI / 2;
     this.vx     = 0;
     this.vy     = 0;
-    this.radius = 12;
+    // La nave morada es dos veces más grande; la elegida se conserva entre muertes.
+    this.scale  = this.purple ? 2 : 1;
+    this.radius = 12 * this.scale;
     this.thrusting     = false;
     this.invincible    = 3;
     this.shootCooldown = 0;
@@ -289,7 +291,7 @@ class Ship {
   tryShoot() {
     if (this.shootCooldown > 0 || this.dead) return [];
     this.shootCooldown = 0.2;
-    const NOSE = 21;
+    const NOSE = 21 * this.scale;
     const ox = this.x + Math.cos(this.angle) * NOSE;
     const oy = this.y + Math.sin(this.angle) * NOSE;
     return [new Bullet(ox, oy, this.angle)];
@@ -300,30 +302,31 @@ class Ship {
     // Parpadeo durante invencibilidad de reaparición
     if (this.invincible > 0 && Math.floor(this.invincible * 8) % 2 === 0) return;
 
+    const s = this.scale;
     ctx.save();
     ctx.translate(this.x, this.y);
     ctx.rotate(this.angle);
-    ctx.strokeStyle = '#fff';
+    ctx.strokeStyle = this.purple ? '#a020ff' : '#fff';
     ctx.lineWidth   = 1.5;
     ctx.lineJoin    = 'round';
 
-    // Silueta clásica: triángulo con muesca trasera
+    // Silueta clásica: triángulo con muesca trasera (escalada por la nave elegida)
     ctx.beginPath();
-    ctx.moveTo( 20,  0);   // nariz
-    ctx.lineTo(-12, -9);   // ala izquierda
-    ctx.lineTo( -7,  0);   // muesca trasera
-    ctx.lineTo(-12,  9);   // ala derecha
+    ctx.moveTo( 20 * s,  0);   // nariz
+    ctx.lineTo(-12 * s, -9 * s);   // ala izquierda
+    ctx.lineTo( -7 * s,  0);   // muesca trasera
+    ctx.lineTo(-12 * s,  9 * s);   // ala derecha
     ctx.closePath();
     ctx.stroke();
 
     // Llama del propulsor
     if (this.thrusting && Math.random() > 0.35) {
       const boosted = this.boostTimer > 0;
-      const len     = boosted ? rand(8, 22) : rand(6, 14);
+      const len     = (boosted ? rand(8, 22) : rand(6, 14)) * s;
       ctx.beginPath();
-      ctx.moveTo(-8, -4);
-      ctx.lineTo(-8 - len, 0);
-      ctx.lineTo(-8,  4);
+      ctx.moveTo(-8 * s, -4 * s);
+      ctx.lineTo(-8 * s - len, 0);
+      ctx.lineTo(-8 * s,  4 * s);
       ctx.strokeStyle = boosted ? 'rgba(0, 255, 255, 0.9)' : 'rgba(255, 130, 0, 0.85)';
       ctx.stroke();
     }
@@ -422,6 +425,12 @@ function killShip() {
 
 // ── Update ────────────────────────────────────────────────────────────────────
 function update(dt) {
+  // Alternar entre nave normal y nave morada (2x tamaño, 2x puntos)
+  if (pressed('KeyB') && state === 'playing' && !ship.dead) {
+    ship.purple = !ship.purple;
+    ship.scale  = ship.purple ? 2 : 1;
+    ship.radius = 12 * ship.scale;
+  }
   if (state === 'gameover') {
     if (pressed('Space')) initGame();
     particles.forEach(p => p.update(dt));
@@ -460,7 +469,8 @@ function update(dt) {
       if (!a.dead && !b.dead && dist(b, a) < a.radius) {
         b.dead = true;
         a.dead = true;
-        score += a.special ? SHOOTING_STAR_POINTS : POINTS[a.size];
+        const basePts = a.special ? SHOOTING_STAR_POINTS : POINTS[a.size];
+        score += ship.purple ? basePts * 2 : basePts;
         explode(a.x, a.y, a.size * 5);
         newAsteroids.push(...a.split());
         // 10% de chance de soltar un power-up de velocidad
@@ -502,11 +512,11 @@ function update(dt) {
 }
 
 // ── Draw ──────────────────────────────────────────────────────────────────────
-function drawLifeIcon(x, y) {
+function drawLifeIcon(x, y, purple) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-Math.PI / 2);
-  ctx.strokeStyle = '#fff';
+  ctx.strokeStyle = purple ? '#a020ff' : '#fff';
   ctx.lineWidth   = 1.2;
   ctx.lineJoin    = 'round';
   ctx.beginPath();
@@ -529,8 +539,16 @@ function drawHUD() {
   ctx.textAlign = 'center';
   ctx.fillText(`NIVEL ${level}`, W / 2, 26);
 
+  // Indicador de nave seleccionada
+  if (ship.purple) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#a020ff';
+    ctx.fillText('NAVE MORADA  x2', W / 2, 48);
+    ctx.fillStyle = '#fff';
+  }
+
   for (let i = 0; i < lives; i++)
-    drawLifeIcon(W - 16 - i * 22, 18);
+    drawLifeIcon(W - 16 - i * 22, 18, ship.purple);
 
   // Indicador de boost activo
   if (ship.boostTimer > 0) {
@@ -564,7 +582,7 @@ function draw() {
   drawHUD();
 
   if (state === 'gameover')
-    drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO PARA REINICIAR`);
+    drawOverlay('GAME OVER', `PUNTAJE: ${score}   —   ESPACIO: REINICIAR   ·   B: NAVE MORADA`);
 }
 
 // ── Loop principal ────────────────────────────────────────────────────────────
